@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    /* Your Original Base */
+    --pum-pink: 319, 70%, 92%;
+    --pum-cream: 28, 100%, 95%;
+    --pum-lavender: 304, 57%, 95%;
+    --pum-mist: 318, 76%, 97%;
+    --pum-pearl: 310, 100%, 99%;
+    --pum-dusty: 308, 68%, 89%;
+    
+    /* NEW: Botanical Green (Sage/Eucalyptus tone) */
+    --pum-green: 145, 25%, 45%; 
+    --pum-green-light: 145, 30%, 92%;
+
+    /* Updated Taupe (Slightly cooler to match the green) */
+    --pum-taupe: 314, 20%, 35%;
+
+  }
+
+  body {
+    background-color: hsl(var(--pum-pearl));
+    color: hsl(var(--pum-taupe));
+  }
+
+  /* Animations */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-20px); }
+  }
+
+  .animate-float-slow { animation: float 6s ease-in-out infinite; }
+  .animate-float-delayed { animation: float 7s ease-in-out infinite 1s; }
+
+  @keyframes drift {
+    0% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(20px) rotate(5deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+
+  .petal-float { animation: drift 6s ease-in-out infinite; }
+}
