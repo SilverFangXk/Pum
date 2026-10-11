@@ -1,122 +1,183 @@
-import { useRef, useEffect, useState } from "react";
-import { Sparkles, ChevronLeft, ChevronRight } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { Sparkles, ChevronLeft, ChevronRight, ArrowRight } from "lucide-react";
+import { getProducts, COLOR_FAMILIES, formatPrice } from "../api/products";
+
+const CARD = 220;  // card width in px
+const GAP = 20;    // space between cards in px
+const MAX = 20;    // how many bouquets to show
+const SPEED = 30;  // auto-scroll speed in px per second
 
 export function SlideBarSection() {
-    const sliderRef = useRef(null);
-    const [flowers, setFlowers] = useState([]);
+  const sliderRef = useRef(null);
+  const [featured, setFeatured] = useState([]);
 
-    // Load data
-    useEffect(() => {
-        fetch("/flowers.json")
-            .then(res => res.json())
-            .then(data => setFlowers(data.slice(0, 13)))
-            .catch(err => console.error("Fetch Error:", err));
-    }, []);
+  const pausedRef = useRef(false);   // true while hovering / touching
+  const resumeAtRef = useRef(0);     // timestamp when auto-scroll may resume
+  const posRef = useRef(0);          // float scroll position (scrollLeft can round)
 
-    // duplicate for infinite loop
-    const loopedFlowers = [...flowers, ...flowers];
+  // Round-robin through the species so neighbors differ
+  useEffect(() => {
+    getProducts("flowers")
+      .then((data) => {
+        const groups = {};
+        data.forEach((p) => (groups[p.type] ||= []).push(p));
+        const lists = Object.values(groups);
 
-    const scroll = (direction) => {
-        const container = sliderRef.current;
-        if (!container) return;
-
-        const scrollAmount = 410;
-        const singleSetWidth = container.scrollWidth / 2;
-
-        if (direction === "right") {
-            container.scrollBy({ left: scrollAmount, behavior: "smooth" });
-
-            setTimeout(() => {
-                // when reaching second copy → reset to start (INSTANT, invisible)
-                if (container.scrollLeft >= singleSetWidth) {
-                    container.scrollLeft = 0;
-                }
-            }, 450);
-        }
-
-        if (direction === "left") {
-            // if at start → jump silently to end of first set
-            if (container.scrollLeft <= 0) {
-                container.scrollLeft = singleSetWidth;
+        const picks = [];
+        for (let round = 0; picks.length < MAX; round++) {
+          let added = false;
+          for (const list of lists) {
+            if (list[round] && picks.length < MAX) {
+              picks.push(list[round]);
+              added = true;
             }
-
-            container.scrollBy({ left: -scrollAmount, behavior: "smooth" });
+          }
+          if (!added) break;
         }
+        setFeatured(picks);
+      })
+      .catch((err) => console.error("Fetch Error:", err));
+  }, []);
+
+  // Auto-scroll: the list is rendered twice, so when we pass the end of the
+  // first copy we jump back by one copy's width and nobody sees the seam.
+  useEffect(() => {
+    const el = sliderRef.current;
+    if (!el || featured.length === 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    let raf;
+    let last = performance.now();
+    posRef.current = el.scrollLeft;
+
+    const tick = (now) => {
+      const dt = Math.min(now - last, 50);
+      last = now;
+
+      if (pausedRef.current || now < resumeAtRef.current) {
+        posRef.current = el.scrollLeft; // follow the user's own scrolling
+      } else {
+        const setWidth = (el.scrollWidth + GAP) / 2;
+        let next = posRef.current + (SPEED * dt) / 1000;
+        if (next >= setWidth) next -= setWidth;
+        posRef.current = next;
+        el.scrollLeft = next;
+      }
+      raf = requestAnimationFrame(tick);
     };
 
-    return (
-        <section className="py-32 bg-[hsl(var(--pum-pearl))] overflow-hidden relative">
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [featured.length]);
 
-            {/* HEADER */}
-            <div className="max-w-7xl mx-auto px-12 mb-16 flex justify-between items-end">
+  const holdAutoScroll = (ms) => {
+    resumeAtRef.current = performance.now() + ms;
+  };
 
-                <div className="space-y-4">
-                    <h2 className="font-serif text-6xl italic text-[hsl(var(--pum-taupe))]">
-                        Our Flowers.
-                    </h2>
+  const scroll = (dir) => {
+    const el = sliderRef.current;
+    if (!el) return;
+    const setWidth = (el.scrollWidth + GAP) / 2;
+    const amount = (CARD + GAP) * 2;
+    holdAutoScroll(1500);
+    // Going left from the very start: jump silently one copy ahead first
+    if (dir < 0 && el.scrollLeft < amount) el.scrollLeft += setWidth;
+    el.scrollBy({ left: dir * amount, behavior: "smooth" });
+  };
 
-                    <div className="flex items-center gap-2 text-[hsl(var(--pum-green))]">
-                        <Sparkles size={14} />
-                        <span className="text-[9px] uppercase tracking-[0.3em] font-bold">
-                            {flowers.length} Hand-Crafted Varieties
-                        </span>
-                    </div>
-                </div>
+  const arrowCls =
+    "p-3.5 rounded-full border border-[hsl(var(--pum-taupe)/20)] text-[hsl(var(--pum-taupe))] hover:bg-[hsl(var(--pum-green))] hover:text-white hover:border-[hsl(var(--pum-green))] transition-all";
 
-                <div className="flex items-center gap-4">
-                    <button onClick={() => scroll("left")} className="p-4 rounded-full border border-[hsl(var(--pum-taupe))/20] hover:bg-[hsl(var(--pum-green))] hover:text-white transition-all">
-                        <ChevronLeft size={20} />
-                    </button>
+  // Two identical copies for the seamless loop
+  const looped = [0, 1].flatMap((copy) => featured.map((p) => ({ p, copy })));
 
-                    <button onClick={() => scroll("right")} className="p-4 rounded-full border border-[hsl(var(--pum-taupe))/20] hover:bg-[hsl(var(--pum-green))] hover:text-white transition-all">
-                        <ChevronRight size={20} />
-                    </button>
-                </div>
+  return (
+    <section className="py-28 px-16 bg-[hsl(var(--pum-pearl))] overflow-hidden relative">
+      {/* HEADER */}
+      <div className="max-w-7xl mx-auto px-12 mb-12 flex justify-between items-end">
+        <div className="space-y-4">
+          <h2 className="font-serif text-6xl italic text-[hsl(var(--pum-taupe))]">Our Flowers.</h2>
+          <div className="flex items-center gap-2 text-[hsl(var(--pum-green))]">
+            <Sparkles size={14} />
+            <span className="text-[9px] uppercase tracking-[0.3em] font-bold">
+              {featured.length ? `${featured.length} signature bouquets` : "\u00A0"}
+            </span>
+          </div>
+        </div>
 
-            </div>
+        <div className="flex items-center gap-6">
+          <Link
+            to="/shop"
+            className="hidden sm:flex items-center gap-2 text-[10px] uppercase tracking-[0.2em] font-bold text-[hsl(var(--pum-green))] border-b border-[hsl(var(--pum-green))] pb-1 hover:opacity-70 transition-opacity"
+          >
+            View all <ArrowRight size={14} />
+          </Link>
+          <div className="flex items-center gap-3">
+            <button onClick={() => scroll(-1)} aria-label="Previous" className={arrowCls}>
+              <ChevronLeft size={18} />
+            </button>
+            <button onClick={() => scroll(1)} aria-label="Next" className={arrowCls}>
+              <ChevronRight size={18} />
+            </button>
+          </div>
+        </div>
+      </div>
 
-            {/* SLIDER */}
+      {/* SLIDER (full width, like the Services section) */}
+      <div
+        ref={sliderRef}
+        style={{ gap: GAP }}
+        onMouseEnter={() => (pausedRef.current = true)}
+        onMouseLeave={() => (pausedRef.current = false)}
+        onTouchStart={() => (pausedRef.current = true)}
+        onTouchEnd={() => {
+          pausedRef.current = false;
+          holdAutoScroll(2000);
+        }}
+        onWheel={() => holdAutoScroll(1500)}
+        className="flex overflow-x-auto scrollbar-hide pb-4"
+      >
+        {looped.map(({ p, copy }) => (
+          <Link
+            key={`${p.key}-${copy}`}
+            to={`/shop?type=${encodeURIComponent(p.type)}`}
+            style={{ minWidth: CARD, width: CARD }}
+            className="group shrink-0"
+            aria-hidden={copy === 1}
+            tabIndex={copy === 1 ? -1 : 0}
+          >
             <div
-                ref={sliderRef}
-                className="flex gap-10 px-12 overflow-x-auto scrollbar-hide scroll-smooth"
+              className="relative aspect-[3/4] rounded-[1.5rem] overflow-hidden shadow-lg"
+              style={{ backgroundColor: COLOR_FAMILIES[p.colorFamily]?.hex || "#F4E8F1" }}
             >
-                {loopedFlowers.map((flower, i) => (
-                    <div key={i} className="min-w-[400px] group space-y-8">
-
-                        <div className="aspect-[4/5] bg-[hsl(var(--pum-mist))] rounded-[2.5rem] overflow-hidden relative shadow-2xl group-hover:scale-[1.02] transition-transform duration-500">
-
-                            <img
-                                src={flower.image}
-                                alt={flower.name}
-                                className="w-full h-full object-cover"
-                            />
-
-                            <div className="absolute top-8 left-8 z-10">
-                                <span className="px-5 py-2.5 bg-[hsl(var(--pum-pink))]/40 backdrop-blur-xl border border-[hsl(var(--pum-taupe))/30] text-[hsl(var(--pum-taupe))] text-[10px] uppercase tracking-[0.3em] font-bold rounded-full">
-                                    {flower.type}
-                                </span>
-                            </div>
-
-                        </div>
-
-                        <div className="space-y-3 px-2">
-                            <h4 className="text-2xl font-serif italic text-[hsl(var(--pum-taupe))]">
-                                {flower.name}
-                            </h4>
-
-                            <p className="text-[13px] text-[hsl(var(--pum-taupe))/70] leading-relaxed line-clamp-2 max-w-[320px]">
-                                {flower.desc}
-                            </p>
-
-                            <p className="text-[14px] font-black text-[hsl(var(--pum-green))] tracking-[0.2em]">
-                                {flower.price}
-                            </p>
-                        </div>
-
-                    </div>
-                ))}
+              <img
+                src={p.image}
+                alt={copy === 1 ? "" : p.name}
+                loading="lazy"
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+              />
+              <span className="absolute top-3 left-3 px-3 py-1.5 bg-white/70 backdrop-blur-md text-[hsl(var(--pum-taupe))] text-[8px] uppercase tracking-[0.2em] font-bold rounded-full">
+                {p.type}
+              </span>
             </div>
 
-        </section>
-    );
+            <div className="pt-4 px-1 space-y-1.5">
+              <h4 className="text-lg font-serif italic text-[hsl(var(--pum-taupe))] leading-snug">{p.name}</h4>
+              <div className="flex items-center gap-2 text-xs text-[hsl(var(--pum-taupe)/60)]">
+                <span
+                  className="w-3 h-3 rounded-full border border-[hsl(var(--pum-taupe)/25)]"
+                  style={{ backgroundColor: COLOR_FAMILIES[p.colorFamily]?.hex }}
+                />
+                {p.color} · {p.size}
+              </div>
+              <p className="text-[13px] font-black text-[hsl(var(--pum-green))] tracking-[0.12em]">
+                {formatPrice(p.priceNum)}
+              </p>
+            </div>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
 }

@@ -20,7 +20,7 @@ export function Footer() {
         {/* Brand Block */}
         <div className="md:col-span-4 space-y-8">
           <div className="flex items-center gap-4">
-            <img src="logoPeony.png" alt="Pum Logo" className="w-12 h-12 object-contain" />
+            <img src="Hero/logoPeony.png" alt="Pum Logo" className="w-12 h-12 object-contain" />
             <h2 className="font-serif text-5xl italic text-white tracking-tight">Pum.</h2>
           </div>
           <div className="inline-flex items-center gap-3 px-5 py-2 rounded-full border border-white/10 bg-white/5 backdrop-blur-sm">
